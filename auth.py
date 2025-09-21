@@ -48,13 +48,19 @@ def display_auth_forms(auth, db):
                         st.session_state.user_info = user
                         st.rerun()
                     except HTTPError as e:
-                        # Phân tích lỗi cụ thể hơn cho việc đăng nhập
-                        error_json = e.response.json()
-                        error_message = error_json.get("error", {}).get("message", "UNKNOWN_ERROR")
-                        if "INVALID_LOGIN_CREDENTIALS" in error_message:
-                            st.error("Email hoặc mật khẩu không chính xác.")
-                        else:
-                            st.error("Đã có lỗi xảy ra. Vui lòng thử lại.")
+                        # --- PHẦN SỬA LỖI ĐĂNG NHẬP ---
+                        try:
+                            # Phương pháp đúng để đọc lỗi từ pyrebase
+                            error_json = json.loads(e.args[1])
+                            error_message = error_json.get("error", {}).get("message", "UNKNOWN_ERROR")
+                            
+                            # Cung cấp thông báo lỗi dựa trên mã lỗi từ Firebase
+                            if "INVALID_LOGIN_CREDENTIALS" in error_message or "INVALID_EMAIL" in error_message or "INVALID_PASSWORD" in error_message:
+                                st.error("Email hoặc mật khẩu không chính xác.")
+                            else:
+                                st.error("Đã có lỗi xảy ra. Vui lòng thử lại.")
+                        except (json.JSONDecodeError, IndexError):
+                            st.error("Lỗi kết nối. Vui lòng kiểm tra mạng và thử lại.")
 
         elif choice == "Đăng ký":
             with st.form("register_form"):
@@ -68,11 +74,8 @@ def display_auth_forms(auth, db):
                         user_id = user['localId']
                         token = user['idToken']
                         
-                        # Dữ liệu mặc định cho người dùng mới
                         default_data = {
-                            "history": [], 
-                            "collections": {}, 
-                            "is_pro": False, 
+                            "history": [], "collections": {}, "is_pro": False, 
                             "usage_counters": {"prescription_analysis": 0}
                         }
                         db.child("user_data").child(user_id).set(default_data, token=token)
@@ -80,9 +83,10 @@ def display_auth_forms(auth, db):
                         st.info("Tuyệt vời! Vui lòng chuyển qua tab 'Đăng nhập' để bắt đầu.")
                         
                     except HTTPError as e:
-                        # --- PHẦN NÂNG CẤP XỬ LÝ LỖI CHI TIẾT ---
+                        # --- ĐỒNG BỘ HÓA SỬA LỖI CHO PHẦN ĐĂNG KÝ ---
                         try:
-                            error_json = e.response.json()
+                            # Áp dụng phương pháp đúng để đọc lỗi từ pyrebase
+                            error_json = json.loads(e.args[1])
                             error_message = error_json.get("error", {}).get("message", "UNKNOWN_ERROR")
                             
                             if "EMAIL_EXISTS" in error_message:
@@ -92,13 +96,11 @@ def display_auth_forms(auth, db):
                             elif "INVALID_EMAIL" in error_message:
                                 st.sidebar.error("Lỗi: Định dạng email không hợp lệ.")
                             else:
-                                # Lỗi chung khác từ Firebase
                                 st.sidebar.error("Đã có lỗi xảy ra từ máy chủ. Vui lòng thử lại.")
-                        except json.JSONDecodeError:
-                            # Lỗi không thể phân tích phản hồi từ Firebase
+                        except (json.JSONDecodeError, IndexError):
                              st.sidebar.error("Lỗi kết nối. Vui lòng kiểm tra lại mạng và thử lại.")
                     except Exception as e:
-                        # Các lỗi không mong muốn khác
                         st.sidebar.error(f"Đã xảy ra lỗi không xác định: {e}")
 
     return st.session_state.user_info is not None
+

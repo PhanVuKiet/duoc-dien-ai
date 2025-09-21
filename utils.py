@@ -29,17 +29,17 @@ PROMPT_PRESCRIPTION = load_prompt("prompt_prescription.txt")
 
 @st.cache_resource
 def get_lookup_model():
-    model_name = st.secrets.get("models", {}).get("lookup", "gemini-1.5-flash-latest")
+    model_name = st.secrets.get("models", {}).get("lookup", "gemini-2.5-flash-lite")
     return genai.GenerativeModel(model_name)
 
 @st.cache_resource
 def get_pro_model():
-    model_name = st.secrets.get("models", {}).get("pro", "gemini-pro")
+    model_name = st.secrets.get("models", {}).get("pro", "gemini-2.5-pro")
     return genai.GenerativeModel(model_name)
 
 @st.cache_resource
 def get_prescription_model():
-    model_name = st.secrets.get("models", {}).get("prescription", "gemini-1.5-pro-latest")
+    model_name = st.secrets.get("models", {}).get("prescription", "gemini-2.5-pro")
     return genai.GenerativeModel(model_name)
 
 

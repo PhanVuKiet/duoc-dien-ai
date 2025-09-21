@@ -48,15 +48,20 @@ def display_auth_forms(auth, db):
                     except HTTPError as e:
                         try:
                             error_data = json.loads(e.args[1])
-                            if isinstance(error_data, dict):
-                                error_message = error_data.get("error", {}).get("message", "UNKNOWN_ERROR")
+                            if isinstance(error_data, dict) and "error" in error_data:
+                                error_content = error_data["error"]
+                                if isinstance(error_content, dict):
+                                    error_message = error_content.get("message", "UNKNOWN_ERROR")
+                                else:
+                                    error_message = str(error_content)
+                                
                                 if "INVALID_LOGIN_CREDENTIALS" in error_message or "INVALID_EMAIL" in error_message or "INVALID_PASSWORD" in error_message:
                                     st.error("Email hoặc mật khẩu không chính xác.")
                                 else:
-                                    st.error("Đã có lỗi xảy ra. Vui lòng thử lại.")
+                                    st.error(f"Lỗi từ máy chủ: {error_message}")
                             else:
                                 st.error("Lỗi không xác định từ máy chủ. Vui lòng thử lại.")
-                        except (json.JSONDecodeError, IndexError):
+                        except (json.JSONDecodeError, IndexError, KeyError):
                             st.error("Lỗi kết nối. Vui lòng kiểm tra mạng và thử lại.")
 
         elif choice == "Đăng ký":
@@ -75,39 +80,43 @@ def display_auth_forms(auth, db):
                             "history": [], "collections": {}, "is_pro": False, 
                             "usage_counters": {"prescription_analysis": 0}
                         }
-                        # Thao tác ghi dữ liệu có thể gây lỗi nếu Rules sai
                         db.child("user_data").child(user_id).set(default_data, token=token)
                         
                         st.info("Tuyệt vời! Vui lòng chuyển qua tab 'Đăng nhập' để bắt đầu.")
                         
                     except HTTPError as e:
-                        # --- PHẦN NÂNG CẤP CUỐI CÙNG ---
+                        # --- BẢN VÁ LỖI CUỐI CÙNG ---
                         try:
                             error_data = json.loads(e.args[1])
                             
-                            # KIỂM TRA XEM LỖI LÀ DICT HAY STRING
-                            if isinstance(error_data, dict):
-                                error_message = error_data.get("error", {}).get("message", "UNKNOWN_ERROR")
+                            # Kiểm tra xem có key "error" không
+                            if isinstance(error_data, dict) and "error" in error_data:
+                                error_content = error_data["error"]
                                 
+                                # Kiểm tra xem nội dung lỗi là dict hay string
+                                if isinstance(error_content, dict):
+                                    # Trường hợp lỗi phức tạp: {"error": {"message": "EMAIL_EXISTS"}}
+                                    error_message = error_content.get("message", "UNKNOWN_ERROR")
+                                else:
+                                    # Trường hợp lỗi đơn giản: {"error": "Permission denied"}
+                                    error_message = str(error_content)
+                                
+                                # Phân tích thông điệp lỗi cuối cùng
                                 if "EMAIL_EXISTS" in error_message:
-                                    st.sidebar.error("Lỗi: Email này đã được đăng ký. Vui lòng sử dụng email khác hoặc đăng nhập.")
+                                    st.sidebar.error("Lỗi: Email này đã được đăng ký.")
                                 elif "WEAK_PASSWORD" in error_message:
                                     st.sidebar.error("Lỗi: Mật khẩu phải có ít nhất 6 ký tự.")
                                 elif "INVALID_EMAIL" in error_message:
                                     st.sidebar.error("Lỗi: Định dạng email không hợp lệ.")
+                                elif "Permission denied" in error_message:
+                                    st.sidebar.error("Lỗi: Không có quyền ghi dữ liệu. Vui lòng kiểm tra lại Security Rules trên Firebase.")
                                 else:
-                                    st.sidebar.error("Đã có lỗi xảy ra từ máy chủ. Vui lòng thử lại.")
-                            
-                            elif isinstance(error_data, str):
-                                if "Permission denied" in error_data:
-                                     st.sidebar.error("Lỗi: Không có quyền ghi dữ liệu. Vui lòng kiểm tra lại Security Rules trên Firebase.")
-                                else:
-                                     st.sidebar.error(f"Lỗi từ máy chủ: {error_data}")
+                                    st.sidebar.error(f"Lỗi từ máy chủ: {error_message}")
                             else:
                                 st.sidebar.error("Lỗi không xác định từ máy chủ.")
 
-                        except (json.JSONDecodeError, IndexError):
-                             st.sidebar.error("Lỗi kết nối. Vui lòng kiểm tra lại mạng và thử lại.")
+                        except (json.JSONDecodeError, IndexError, KeyError):
+                             st.sidebar.error("Lỗi kết nối. Vui lòng kiểm tra lại mạng.")
                     except Exception as e:
                         st.sidebar.error(f"Đã xảy ra lỗi không xác định: {e}")
 

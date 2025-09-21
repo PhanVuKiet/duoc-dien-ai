@@ -29,17 +29,17 @@ PROMPT_PRESCRIPTION = load_prompt("prompt_prescription.txt")
 
 @st.cache_resource
 def get_lookup_model():
-    model_name = st.secrets.get("models", {}).get("lookup", "gemini-2.5-flash-lite")
+    model_name = st.secrets.get("models", {}).get("lookup", "gemini-1.5-flash-latest")
     return genai.GenerativeModel(model_name)
 
 @st.cache_resource
 def get_pro_model():
-    model_name = st.secrets.get("models", {}).get("pro", "gemini-2.5-pro")
+    model_name = st.secrets.get("models", {}).get("pro", "gemini-pro")
     return genai.GenerativeModel(model_name)
 
 @st.cache_resource
 def get_prescription_model():
-    model_name = st.secrets.get("models", {}).get("prescription", "gemini-2.5-pro")
+    model_name = st.secrets.get("models", {}).get("prescription", "gemini-1.5-pro-latest")
     return genai.GenerativeModel(model_name)
 
 
@@ -50,8 +50,12 @@ def get_access_codes_df():
         credentials_dict = dict(st.secrets.connections.gsheets.credentials)
         gspread_client = gspread.service_account_from_dict(credentials_dict)
         
-        spreadsheet_name = st.secrets.connections.gsheets.spreadsheet
-        spreadsheet = gspread_client.open(spreadsheet_name)
+        # --- THAY ĐỔI DUY NHẤT NẰM Ở ĐÂY ---
+        # Kết nối bằng ID thay vì Tên để đảm bảo độ ổn định
+        spreadsheet_id = st.secrets.connections.gsheets.spreadsheet_id
+        spreadsheet = gspread_client.open_by_key(spreadsheet_id)
+        # --- KẾT THÚC THAY ĐỔI ---
+
         worksheet = spreadsheet.sheet1
         return get_as_dataframe(worksheet)
     except Exception as e:

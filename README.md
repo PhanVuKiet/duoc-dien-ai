@@ -112,4 +112,6 @@ pubmed = "..."
 ```
 
 #### 5. Deploy app
-
+```bash
+streamlit run app.py
+```

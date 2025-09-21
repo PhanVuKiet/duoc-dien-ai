@@ -9,7 +9,6 @@ def initialize_firebase_app():
     Khởi tạo và cache kết nối tới Firebase.
     """
     try:
-        # Chuyển đổi secrets thành dict để tương thích với pyrebase
         firebase_config = dict(st.secrets.firebase)
         firebase = pyrebase.initialize_app(firebase_config)
         return firebase
@@ -30,7 +29,6 @@ def display_auth_forms(auth, db):
         user_email = st.session_state.user_info['email']
         st.success(f"Chào mừng, {user_email}")
         if st.button("Đăng xuất"):
-            # Giữ lại các biến của firebase, xóa các biến người dùng
             for key in list(st.session_state.keys()):
                 if key not in ['firebase_app', 'firebase_auth', 'firebase_db']:
                     del st.session_state[key]
@@ -48,17 +46,16 @@ def display_auth_forms(auth, db):
                         st.session_state.user_info = user
                         st.rerun()
                     except HTTPError as e:
-                        # --- PHẦN SỬA LỖI ĐĂNG NHẬP ---
                         try:
-                            # Phương pháp đúng để đọc lỗi từ pyrebase
-                            error_json = json.loads(e.args[1])
-                            error_message = error_json.get("error", {}).get("message", "UNKNOWN_ERROR")
-                            
-                            # Cung cấp thông báo lỗi dựa trên mã lỗi từ Firebase
-                            if "INVALID_LOGIN_CREDENTIALS" in error_message or "INVALID_EMAIL" in error_message or "INVALID_PASSWORD" in error_message:
-                                st.error("Email hoặc mật khẩu không chính xác.")
+                            error_data = json.loads(e.args[1])
+                            if isinstance(error_data, dict):
+                                error_message = error_data.get("error", {}).get("message", "UNKNOWN_ERROR")
+                                if "INVALID_LOGIN_CREDENTIALS" in error_message or "INVALID_EMAIL" in error_message or "INVALID_PASSWORD" in error_message:
+                                    st.error("Email hoặc mật khẩu không chính xác.")
+                                else:
+                                    st.error("Đã có lỗi xảy ra. Vui lòng thử lại.")
                             else:
-                                st.error("Đã có lỗi xảy ra. Vui lòng thử lại.")
+                                st.error("Lỗi không xác định từ máy chủ. Vui lòng thử lại.")
                         except (json.JSONDecodeError, IndexError):
                             st.error("Lỗi kết nối. Vui lòng kiểm tra mạng và thử lại.")
 
@@ -78,25 +75,37 @@ def display_auth_forms(auth, db):
                             "history": [], "collections": {}, "is_pro": False, 
                             "usage_counters": {"prescription_analysis": 0}
                         }
+                        # Thao tác ghi dữ liệu có thể gây lỗi nếu Rules sai
                         db.child("user_data").child(user_id).set(default_data, token=token)
                         
                         st.info("Tuyệt vời! Vui lòng chuyển qua tab 'Đăng nhập' để bắt đầu.")
                         
                     except HTTPError as e:
-                        # --- ĐỒNG BỘ HÓA SỬA LỖI CHO PHẦN ĐĂNG KÝ ---
+                        # --- PHẦN NÂNG CẤP CUỐI CÙNG ---
                         try:
-                            # Áp dụng phương pháp đúng để đọc lỗi từ pyrebase
-                            error_json = json.loads(e.args[1])
-                            error_message = error_json.get("error", {}).get("message", "UNKNOWN_ERROR")
+                            error_data = json.loads(e.args[1])
                             
-                            if "EMAIL_EXISTS" in error_message:
-                                st.sidebar.error("Lỗi: Email này đã được đăng ký. Vui lòng sử dụng email khác hoặc đăng nhập.")
-                            elif "WEAK_PASSWORD" in error_message:
-                                st.sidebar.error("Lỗi: Mật khẩu phải có ít nhất 6 ký tự.")
-                            elif "INVALID_EMAIL" in error_message:
-                                st.sidebar.error("Lỗi: Định dạng email không hợp lệ.")
+                            # KIỂM TRA XEM LỖI LÀ DICT HAY STRING
+                            if isinstance(error_data, dict):
+                                error_message = error_data.get("error", {}).get("message", "UNKNOWN_ERROR")
+                                
+                                if "EMAIL_EXISTS" in error_message:
+                                    st.sidebar.error("Lỗi: Email này đã được đăng ký. Vui lòng sử dụng email khác hoặc đăng nhập.")
+                                elif "WEAK_PASSWORD" in error_message:
+                                    st.sidebar.error("Lỗi: Mật khẩu phải có ít nhất 6 ký tự.")
+                                elif "INVALID_EMAIL" in error_message:
+                                    st.sidebar.error("Lỗi: Định dạng email không hợp lệ.")
+                                else:
+                                    st.sidebar.error("Đã có lỗi xảy ra từ máy chủ. Vui lòng thử lại.")
+                            
+                            elif isinstance(error_data, str):
+                                if "Permission denied" in error_data:
+                                     st.sidebar.error("Lỗi: Không có quyền ghi dữ liệu. Vui lòng kiểm tra lại Security Rules trên Firebase.")
+                                else:
+                                     st.sidebar.error(f"Lỗi từ máy chủ: {error_data}")
                             else:
-                                st.sidebar.error("Đã có lỗi xảy ra từ máy chủ. Vui lòng thử lại.")
+                                st.sidebar.error("Lỗi không xác định từ máy chủ.")
+
                         except (json.JSONDecodeError, IndexError):
                              st.sidebar.error("Lỗi kết nối. Vui lòng kiểm tra lại mạng và thử lại.")
                     except Exception as e:
